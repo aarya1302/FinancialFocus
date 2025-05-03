@@ -4,7 +4,13 @@ import plotly.express as px
 import numpy as np
 from datetime import datetime
 import calendar
-from utils import load_data, save_data
+from up_api_service import (
+    format_transactions_for_dashboard, 
+    get_monthly_income,
+    get_monthly_expenses_by_category,
+    get_monthly_spending_trends,
+    get_total_balance
+)
 from finance_recommendations import calculate_spending_limits
 
 # Page configuration
@@ -14,10 +20,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize session state
-if 'data' not in st.session_state:
-    st.session_state.data = load_data()
-
 # App title and description
 st.title("💰 Personal Finance Dashboard")
 st.markdown("""
@@ -25,95 +27,84 @@ This minimalist dashboard helps you track your finances and stay on budget.
 Research shows that regular tracking and visual feedback can significantly improve financial habits.
 """)
 
-# Sidebar for data input
+# Sidebar for account summary and total balance
 with st.sidebar:
-    st.header("💵 Income & Expenses")
+    st.header("💵 Account Summary")
     
-    # Income input
-    st.subheader("Monthly Income")
-    income = st.number_input("Enter your monthly income ($)", 
-                            min_value=0.0, 
-                            value=float(st.session_state.data['income']) if 'income' in st.session_state.data else 0.0,
-                            step=100.0)
+    # Display total balance
+    total_balance = get_total_balance()
+    st.metric("Total Balance", f"${total_balance:.2f}")
     
-    # Expense input
-    st.subheader("Add Expense")
-    expense_date = st.date_input("Date", datetime.now())
-    expense_category = st.selectbox(
-        "Category",
-        ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Healthcare", "Personal", "Debt", "Other"]
-    )
-    expense_amount = st.number_input("Amount ($)", min_value=0.0, step=10.0)
-    expense_description = st.text_input("Description (optional)")
+    # Get monthly income
+    monthly_income = get_monthly_income()
+    st.metric("Monthly Income", f"${monthly_income:.2f}")
     
-    if st.button("Add Expense"):
-        # Update expenses data
-        new_expense = {
-            'date': expense_date.strftime('%Y-%m-%d'),
-            'category': expense_category,
-            'amount': expense_amount,
-            'description': expense_description
-        }
-        
-        if 'expenses' not in st.session_state.data:
-            st.session_state.data['expenses'] = []
-        
-        st.session_state.data['expenses'].append(new_expense)
-        st.session_state.data['income'] = income
-        save_data(st.session_state.data)
-        st.success("Expense added successfully!")
-        st.rerun()
+    # Calculate estimated annual income
+    st.metric("Estimated Annual Income", f"${monthly_income * 12:.2f}")
+    
+    st.markdown("---")
+    st.markdown("""
+    #### 💡 Data Source
+    
+    This dashboard is using mock data based on the Up Banking API format.
+    For real usage, you would connect to your Up Banking account.
+    """)
+
 
 # Main content area
 col1, col2 = st.columns(2)
 
 # Process data for visualizations
-expenses_df = pd.DataFrame()
-if 'expenses' in st.session_state.data and st.session_state.data['expenses']:
-    expenses_df = pd.DataFrame(st.session_state.data['expenses'])
-    expenses_df['date'] = pd.to_datetime(expenses_df['date'])
-    expenses_df['month'] = expenses_df['date'].dt.strftime('%Y-%m')
+expenses_df = format_transactions_for_dashboard()
 
 # First visualization: Spending by Category
 with col1:
     st.subheader("📊 Spending by Category")
     
     if not expenses_df.empty:
-        # Group expenses by category
-        category_data = expenses_df.groupby('category')['amount'].sum().reset_index()
+        # Filter for expenses (negative amounts) and make them positive for visualization
+        category_expenses = get_monthly_expenses_by_category()
         
-        # Create pie chart
-        fig = px.pie(
-            category_data, 
-            values='amount', 
-            names='category',
-            color_discrete_sequence=px.colors.qualitative.Pastel,
-            hole=0.4
-        )
-        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Show the category breakdown in a table
-        st.markdown("##### Category Breakdown")
-        category_data = category_data.sort_values('amount', ascending=False)
-        
-        # Calculate percentage of total
-        total_expenses = category_data['amount'].sum()
-        category_data['percentage'] = (category_data['amount'] / total_expenses * 100).round(1)
-        category_data = category_data.rename(columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'})
-        
-        st.dataframe(category_data, use_container_width=True)
+        if category_expenses:
+            # Create dataframe for visualization
+            category_data = pd.DataFrame({
+                'category': list(category_expenses.keys()),
+                'amount': list(category_expenses.values())
+            })
+            
+            # Create pie chart
+            fig = px.pie(
+                category_data, 
+                values='amount', 
+                names='category',
+                color_discrete_sequence=px.colors.qualitative.Pastel,
+                hole=0.4
+            )
+            fig.update_layout(margin=dict(t=0, b=0, l=0, r=0))
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Show the category breakdown in a table
+            st.markdown("##### Category Breakdown")
+            category_data = category_data.sort_values('amount', ascending=False)
+            
+            # Calculate percentage of total
+            total_expenses = category_data['amount'].sum()
+            category_data['percentage'] = (category_data['amount'] / total_expenses * 100).round(1)
+            category_data = category_data.rename(columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'})
+            
+            st.dataframe(category_data, use_container_width=True)
+        else:
+            st.info("No expense data available for the current month")
     else:
-        st.info("Add expenses to see your spending by category")
+        st.info("No transaction data available")
 
 # Second visualization: Monthly Spending Trends
 with col2:
     st.subheader("📈 Monthly Spending Trends")
     
-    if not expenses_df.empty:
-        # Group by month and category
-        monthly_data = expenses_df.groupby(['month', 'category'])['amount'].sum().reset_index()
-        
+    monthly_data = get_monthly_spending_trends()
+    
+    if not monthly_data.empty:
         # Create the line chart
         fig = px.line(
             monthly_data, 
@@ -129,7 +120,7 @@ with col2:
         
         # Show total monthly spending
         st.markdown("##### Monthly Totals")
-        monthly_totals = expenses_df.groupby('month')['amount'].sum().reset_index()
+        monthly_totals = monthly_data.groupby('month')['amount'].sum().reset_index()
         monthly_totals = monthly_totals.sort_values('month', ascending=False)
         monthly_totals = monthly_totals.rename(columns={'amount': 'Total Spent ($)', 'month': 'Month'})
         
@@ -141,16 +132,18 @@ with col2:
         
         st.dataframe(monthly_totals, use_container_width=True)
     else:
-        st.info("Add expenses to see your monthly spending trends")
+        st.info("No transaction data available for monthly trends")
+
 
 # Research-backed spending recommendations
 st.subheader("💡 Research-backed Spending Recommendations")
 
-if 'income' in st.session_state.data and st.session_state.data['income'] > 0:
-    income = st.session_state.data['income']
-    
+# Use the monthly income from the Up API data
+monthly_income = get_monthly_income()
+
+if monthly_income > 0:
     # Calculate recommended spending limits
-    spending_limits = calculate_spending_limits(income)
+    spending_limits = calculate_spending_limits(monthly_income)
     
     # Display the recommendations
     col1, col2, col3 = st.columns(3)
@@ -188,17 +181,21 @@ if 'income' in st.session_state.data and st.session_state.data['income'] > 0:
     if not expenses_df.empty:
         st.subheader("Your Spending vs Recommendations")
         
-        # Get current month expenses
-        current_month = datetime.now().strftime('%Y-%m')
-        current_month_df = expenses_df[expenses_df['month'] == current_month]
+        # Get monthly expenses by category
+        category_expenses = get_monthly_expenses_by_category()
         
-        if not current_month_df.empty:
-            current_spending = current_month_df.groupby('category')['amount'].sum().to_dict()
-            
+        if category_expenses:
             # Create comparison data
             comparison_data = []
             for category, limit in spending_limits.items():
-                spent = current_spending.get(category, 0)
+                # Try to map our category names to Up API category names (simplified approach)
+                spent = 0
+                for up_category, amount in category_expenses.items():
+                    # Simple mapping based on substring matching
+                    if category.lower() in up_category.lower() or up_category.lower() in category.lower():
+                        spent += amount
+                        break
+                
                 percentage = (spent / limit * 100) if limit > 0 else 0
                 status = "Under budget" if spent <= limit else "Over budget"
                 
@@ -221,9 +218,9 @@ if 'income' in st.session_state.data and st.session_state.data['income'] > 0:
             
             st.dataframe(comparison_df.style.applymap(highlight_status, subset=['Status']), use_container_width=True)
         else:
-            st.info(f"No expense data for the current month ({current_month})")
+            st.info("No expense data available for the current month")
 else:
-    st.info("Enter your monthly income to get personalized spending recommendations")
+    st.info("Income data not available to generate personalized spending recommendations")
 
 # Footer with tips
 st.markdown("---")

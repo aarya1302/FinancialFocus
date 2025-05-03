@@ -1,0 +1,166 @@
+=========================
+🔐 Authentication
+=========================
+All requests require an Authorization header:
+  Authorization: Bearer $your_access_token
+
+=========================
+🌐 Base URL
+=========================
+Base URL: https://api.up.com.au/api/v1
+
+=========================
+📘 Endpoints & Formats
+=========================
+
+1. List Accounts
+GET /accounts
+
+2. Retrieve Account
+GET /accounts/{account_id}
+
+3. List Transactions
+GET /transactions
+
+4. Retrieve Transaction
+GET /transactions/{transaction_id}
+
+5. List Transactions by Account
+GET /accounts/{account_id}/transactions
+
+6. List Categories
+GET /categories
+
+7. Retrieve Category
+GET /categories/{category_id}
+
+8. Categorize Transaction
+PATCH /transactions/{transaction_id}
+Body:
+{
+  "data": {
+    "type": "transactions",
+    "id": "{transaction_id}",
+    "relationships": {
+      "category": {
+        "data": {
+          "type": "categories",
+          "id": "{category_id}"
+        }
+      }
+    }
+  }
+}
+
+9. List Tags
+GET /tags
+
+10. Add Tags to Transaction
+POST /transactions/{transaction_id}/relationships/tags
+Body:
+{
+  "data": [
+    {
+      "type": "tags",
+      "id": "tag-name"
+    }
+  ]
+}
+
+11. Remove Tags from Transaction
+DELETE /transactions/{transaction_id}/relationships/tags
+Body:
+{
+  "data": [
+    {
+      "type": "tags",
+      "id": "tag-name"
+    }
+  ]
+}
+
+=========================
+🔁 Response Examples
+=========================
+
+Accounts:
+{
+  "data": [
+    {
+      "type": "accounts",
+      "id": "1234",
+      "attributes": {
+        "name": "Up Saver",
+        "balance": {
+          "currencyCode": "AUD",
+          "value": "123.45",
+          "valueInBaseUnits": 12345
+        },
+        "accountType": "SAVER"
+      }
+    }
+  ]
+}
+
+Transactions:
+{
+  "data": [
+    {
+      "type": "transactions",
+      "id": "abcd",
+      "attributes": {
+        "description": "Coles",
+        "message": "Weekly groceries",
+        "amount": {
+          "currencyCode": "AUD",
+          "value": "-50.00",
+          "valueInBaseUnits": -5000
+        },
+        "rawText": "COLSPRING",
+        "createdAt": "2023-06-01T12:00:00+11:00",
+        "settledAt": "2023-06-01T13:00:00+11:00"
+      },
+      "relationships": {
+        "account": { "data": { "type": "accounts", "id": "1234" }},
+        "category": { "data": { "type": "categories", "id": "groceries" }},
+        "tags": { "data": [ { "type": "tags", "id": "weekly" } ]}
+      }
+    }
+  ]
+}
+
+Categories:
+{
+  "data": [
+    {
+      "type": "categories",
+      "id": "food-and-drink",
+      "attributes": {
+        "name": "Food & Drink",
+        "parent": null
+      }
+    },
+    {
+      "type": "categories",
+      "id": "groceries",
+      "attributes": {
+        "name": "Groceries",
+        "parent": "food-and-drink"
+      }
+    }
+  ]
+}
+
+Tags (after adding):
+{
+  "data": [
+    { "type": "tags", "id": "weekly" },
+    { "type": "tags", "id": "essentials" }
+  ]
+}
+
+Pagination Example:
+"links": {
+  "prev": null,
+  "next": "https://api.up.com.au/api/v1/transactions?page[size]=2&page[after]=XYZ"
+}
