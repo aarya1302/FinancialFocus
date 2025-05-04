@@ -70,179 +70,210 @@ if view_selection == "Expense Tracking":
     with tracking_tab[0]:
         st.subheader("Today's Expenses")
         
-        if not expenses_df.empty:
-            # Filter for today's date
-            today = datetime.now().date()
-            today_expenses = expenses_df[expenses_df['date'].dt.date == today]
-            
-            if not today_expenses.empty:
-                # Show today's expenses in a table
-                today_expenses_display = today_expenses[['description', 'amount', 'category']].copy()
-                today_expenses_display['amount'] = today_expenses_display['amount'].abs()
-                today_expenses_display = today_expenses_display.rename(
-                    columns={'description': 'Description', 'amount': 'Amount ($)', 'category': 'Category'}
-                )
-                today_expenses_display = today_expenses_display.sort_values('Amount ($)', ascending=False)
+        try:
+            if not expenses_df.empty:
+                # Filter for today's date
+                today = datetime.now().date()
                 
-                st.dataframe(today_expenses_display, use_container_width=True)
+                # Debug information
+                st.write(f"Debug: Today's date is {today}")
+                st.write(f"Debug: Expense DataFrame columns: {list(expenses_df.columns)}")
+                st.write(f"Debug: Date column type: {expenses_df['date'].dtype}")
+                st.write("Debug: First few rows of expenses DataFrame:")
+                st.write(expenses_df.head())
                 
-                # Show total spent today
-                total_today = today_expenses_display['Amount ($)'].sum()
-                st.metric("Total Spent Today", f"${total_today:.2f}")
-            else:
-                # If no expenses today, show recent expenses from last 3 days
-                three_days_ago = today - timedelta(days=3)
-                recent_expenses = expenses_df[(expenses_df['date'].dt.date >= three_days_ago) & 
-                                              (expenses_df['date'].dt.date <= today)]
+                # Filter for today's expenses
+                today_expenses = expenses_df[expenses_df['date'].dt.date == today]
                 
-                if not recent_expenses.empty:
-                    st.info("No expenses recorded today. Here are your recent expenses:")
-                    
-                    recent_expenses_display = recent_expenses[['date', 'description', 'amount', 'category']].copy()
-                    recent_expenses_display['amount'] = recent_expenses_display['amount'].abs()
-                    recent_expenses_display = recent_expenses_display.rename(
-                        columns={'date': 'Date', 'description': 'Description', 'amount': 'Amount ($)', 'category': 'Category'}
+                if not today_expenses.empty:
+                    # Show today's expenses in a table
+                    today_expenses_display = today_expenses[['description', 'amount', 'category']].copy()
+                    today_expenses_display['amount'] = today_expenses_display['amount'].abs()
+                    today_expenses_display = today_expenses_display.rename(
+                        columns={'description': 'Description', 'amount': 'Amount ($)', 'category': 'Category'}
                     )
-                    recent_expenses_display = recent_expenses_display.sort_values('Date', ascending=False)
+                    today_expenses_display = today_expenses_display.sort_values('Amount ($)', ascending=False)
                     
-                    st.dataframe(recent_expenses_display, use_container_width=True)
+                    st.dataframe(today_expenses_display, use_container_width=True)
+                    
+                    # Show total spent today
+                    total_today = today_expenses_display['Amount ($)'].sum()
+                    st.metric("Total Spent Today", f"${total_today:.2f}")
                 else:
-                    st.info("No recent expenses found. Add some expenses to see them here.")
-        else:
-            st.info("No transaction data available")
+                    # If no expenses today, show recent expenses from last 3 days
+                    three_days_ago = today - timedelta(days=3)
+                    recent_expenses = expenses_df[(expenses_df['date'].dt.date >= three_days_ago) & 
+                                                (expenses_df['date'].dt.date <= today)]
+                    
+                    if not recent_expenses.empty:
+                        st.info("No expenses recorded today. Here are your recent expenses:")
+                        
+                        recent_expenses_display = recent_expenses[['date', 'description', 'amount', 'category']].copy()
+                        recent_expenses_display['amount'] = recent_expenses_display['amount'].abs()
+                        recent_expenses_display = recent_expenses_display.rename(
+                            columns={'date': 'Date', 'description': 'Description', 'amount': 'Amount ($)', 'category': 'Category'}
+                        )
+                        recent_expenses_display = recent_expenses_display.sort_values('Date', ascending=False)
+                        
+                        st.dataframe(recent_expenses_display, use_container_width=True)
+                    else:
+                        st.info("No recent expenses found. Add some expenses to see them here.")
+            else:
+                st.info("No transaction data available")
+        except Exception as e:
+            st.error(f"Error in Daily Expenses view: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
     
     # Weekly Expenses View
     with tracking_tab[1]:
         st.subheader("Weekly Spending Breakdown")
         
-        if not expenses_df.empty:
-            # Get the current week's data (last 7 days)
-            week_start = datetime.now().date() - timedelta(days=7)
-            week_end = datetime.now().date()
-            weekly_expenses = expenses_df[(expenses_df['date'].dt.date >= week_start) & 
-                                       (expenses_df['date'].dt.date <= week_end)].copy()
-            
-            if not weekly_expenses.empty:
-                # Make amounts positive for visualization
-                weekly_expenses['amount'] = weekly_expenses['amount'].abs()
+        try:
+            if not expenses_df.empty:
+                # Get the current week's data (last 7 days)
+                week_start = datetime.now().date() - timedelta(days=7)
+                week_end = datetime.now().date()
                 
-                # Add a day column for grouping
-                weekly_expenses['day'] = weekly_expenses['date'].dt.date
+                # Debug information
+                st.write(f"Debug: Week start: {week_start}, Week end: {week_end}")
                 
-                # Group by day and category
-                daily_category_spend = weekly_expenses.groupby(['day', 'category'])['amount'].sum().reset_index()
+                weekly_expenses = expenses_df[(expenses_df['date'].dt.date >= week_start) & 
+                                          (expenses_df['date'].dt.date <= week_end)].copy()
                 
-                # Create a stacked bar chart showing daily spending by category
-                fig = px.bar(
-                    daily_category_spend,
-                    x='day',
-                    y='amount',
-                    color='category',
-                    title='Daily Spending by Category',
-                    labels={'day': 'Date', 'amount': 'Amount ($)', 'category': 'Category'},
-                    color_discrete_sequence=px.colors.qualitative.Pastel
-                )
-                fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-                st.plotly_chart(fig, use_container_width=True)
+                st.write(f"Debug: Number of transactions in weekly view: {len(weekly_expenses)}")
                 
-                # Calculate weekly total
-                weekly_total = weekly_expenses['amount'].sum()
-                
-                # Show category breakdown for the week
-                st.subheader("Category Breakdown for This Week")
-                weekly_by_category = weekly_expenses.groupby('category')['amount'].sum().reset_index()
-                weekly_by_category = weekly_by_category.sort_values('amount', ascending=False)
-                weekly_by_category['percentage'] = (weekly_by_category['amount'] / weekly_total * 100).round(1)
-                weekly_by_category = weekly_by_category.rename(
-                    columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'}
-                )
-                
-                st.dataframe(weekly_by_category, use_container_width=True)
-                st.metric("Total Weekly Spending", f"${weekly_total:.2f}")
+                if not weekly_expenses.empty:
+                    # Make amounts positive for visualization
+                    weekly_expenses['amount'] = weekly_expenses['amount'].abs()
+                    
+                    # Add a day column for grouping
+                    weekly_expenses['day'] = weekly_expenses['date'].dt.date
+                    
+                    # Group by day and category
+                    daily_category_spend = weekly_expenses.groupby(['day', 'category'])['amount'].sum().reset_index()
+                    
+                    # Create a stacked bar chart showing daily spending by category
+                    fig = px.bar(
+                        daily_category_spend,
+                        x='day',
+                        y='amount',
+                        color='category',
+                        title='Daily Spending by Category',
+                        labels={'day': 'Date', 'amount': 'Amount ($)', 'category': 'Category'},
+                        color_discrete_sequence=px.colors.qualitative.Pastel
+                    )
+                    fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Calculate weekly total
+                    weekly_total = weekly_expenses['amount'].sum()
+                    
+                    # Show category breakdown for the week
+                    st.subheader("Category Breakdown for This Week")
+                    weekly_by_category = weekly_expenses.groupby('category')['amount'].sum().reset_index()
+                    weekly_by_category = weekly_by_category.sort_values('amount', ascending=False)
+                    weekly_by_category['percentage'] = (weekly_by_category['amount'] / weekly_total * 100).round(1)
+                    weekly_by_category = weekly_by_category.rename(
+                        columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'}
+                    )
+                    
+                    st.dataframe(weekly_by_category, use_container_width=True)
+                    st.metric("Total Weekly Spending", f"${weekly_total:.2f}")
+                else:
+                    st.info("No expenses recorded in the past week.")
             else:
-                st.info("No expenses recorded in the past week.")
-        else:
-            st.info("No transaction data available")
+                st.info("No transaction data available")
+        except Exception as e:
+            st.error(f"Error in Weekly Expenses view: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
     
     # Monthly Expenses View
     with tracking_tab[2]:
         st.subheader("Monthly Spending Overview")
         
-        if not expenses_df.empty:
-            # Create columns for visualizations
-            col1, col2 = st.columns(2)
-            
-            # Get monthly expenses by category
-            category_expenses = get_monthly_expenses_by_category()
-            
-            if category_expenses:
-                with col1:
-                    # Create dataframe for visualization
-                    category_data = pd.DataFrame({
-                        'category': list(category_expenses.keys()),
-                        'amount': list(category_expenses.values())
-                    })
-                    
-                    # Create pie chart
-                    fig = px.pie(
-                        category_data, 
-                        values='amount', 
-                        names='category',
-                        title='Monthly Spending by Category',
-                        color_discrete_sequence=px.colors.qualitative.Pastel,
-                        hole=0.4
-                    )
-                    fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-                    st.plotly_chart(fig, use_container_width=True)
+        try:
+            if not expenses_df.empty:
+                # Create columns for visualizations
+                col1, col2 = st.columns(2)
                 
-                with col2:
-                    # Get monthly spending trends for line chart
-                    monthly_data = get_monthly_spending_trends()
-                    
-                    if not monthly_data.empty:
-                        # Create the line chart
-                        fig = px.line(
-                            monthly_data, 
-                            x='month', 
-                            y='amount',
-                            color='category',
-                            markers=True,
-                            title='Monthly Spending Trends',
-                            labels={'month': 'Month', 'amount': 'Amount ($)', 'category': 'Category'},
-                            color_discrete_sequence=px.colors.qualitative.Pastel
+                # Get monthly expenses by category
+                category_expenses = get_monthly_expenses_by_category()
+                st.write(f"Debug: Monthly category expenses: {category_expenses}")
+                
+                if category_expenses:
+                    with col1:
+                        # Create dataframe for visualization
+                        category_data = pd.DataFrame({
+                            'category': list(category_expenses.keys()),
+                            'amount': list(category_expenses.values())
+                        })
+                        
+                        # Create pie chart
+                        fig = px.pie(
+                            category_data, 
+                            values='amount', 
+                            names='category',
+                            title='Monthly Spending by Category',
+                            color_discrete_sequence=px.colors.qualitative.Pastel,
+                            hole=0.4
                         )
                         fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
                         st.plotly_chart(fig, use_container_width=True)
-                
-                # Show the category breakdown in a table
-                st.subheader("Monthly Category Breakdown")
-                category_data = category_data.sort_values('amount', ascending=False)
-                
-                # Calculate percentage of total
-                total_expenses = category_data['amount'].sum()
-                category_data['percentage'] = (category_data['amount'] / total_expenses * 100).round(1)
-                category_data = category_data.rename(columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'})
-                
-                st.dataframe(category_data, use_container_width=True)
-                st.metric("Total Monthly Spending", f"${total_expenses:.2f}")
-                
-                # Show month-over-month comparison if we have multiple months of data
-                monthly_totals = monthly_data.groupby('month')['amount'].sum().reset_index()
-                if len(monthly_totals) > 1:
-                    st.subheader("Month-over-Month Comparison")
-                    monthly_totals = monthly_totals.sort_values('month', ascending=False)
-                    monthly_totals = monthly_totals.rename(columns={'amount': 'Total Spent ($)', 'month': 'Month'})
                     
-                    # Add month-over-month change
-                    monthly_totals['Previous Month ($)'] = monthly_totals['Total Spent ($)'].shift(-1)
-                    monthly_totals['Change (%)'] = ((monthly_totals['Total Spent ($)'] / monthly_totals['Previous Month ($)'] - 1) * 100).round(1)
-                    monthly_totals = monthly_totals.fillna('-')
+                    with col2:
+                        # Get monthly spending trends for line chart
+                        monthly_data = get_monthly_spending_trends()
+                        
+                        if not monthly_data.empty:
+                            # Create the line chart
+                            fig = px.line(
+                                monthly_data, 
+                                x='month', 
+                                y='amount',
+                                color='category',
+                                markers=True,
+                                title='Monthly Spending Trends',
+                                labels={'month': 'Month', 'amount': 'Amount ($)', 'category': 'Category'},
+                                color_discrete_sequence=px.colors.qualitative.Pastel
+                            )
+                            fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
+                            st.plotly_chart(fig, use_container_width=True)
                     
-                    st.dataframe(monthly_totals, use_container_width=True)
+                    # Show the category breakdown in a table
+                    st.subheader("Monthly Category Breakdown")
+                    category_data = category_data.sort_values('amount', ascending=False)
+                    
+                    # Calculate percentage of total
+                    total_expenses = category_data['amount'].sum()
+                    category_data['percentage'] = (category_data['amount'] / total_expenses * 100).round(1)
+                    category_data = category_data.rename(columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'})
+                    
+                    st.dataframe(category_data, use_container_width=True)
+                    st.metric("Total Monthly Spending", f"${total_expenses:.2f}")
+                    
+                    # Show month-over-month comparison if we have multiple months of data
+                    monthly_totals = monthly_data.groupby('month')['amount'].sum().reset_index()
+                    if len(monthly_totals) > 1:
+                        st.subheader("Month-over-Month Comparison")
+                        monthly_totals = monthly_totals.sort_values('month', ascending=False)
+                        monthly_totals = monthly_totals.rename(columns={'amount': 'Total Spent ($)', 'month': 'Month'})
+                        
+                        # Add month-over-month change
+                        monthly_totals['Previous Month ($)'] = monthly_totals['Total Spent ($)'].shift(-1)
+                        monthly_totals['Change (%)'] = ((monthly_totals['Total Spent ($)'] / monthly_totals['Previous Month ($)'] - 1) * 100).round(1)
+                        monthly_totals = monthly_totals.fillna('-')
+                        
+                        st.dataframe(monthly_totals, use_container_width=True)
+                else:
+                    st.info("No expense data available for the current month")
             else:
-                st.info("No expense data available for the current month")
-        else:
-            st.info("No transaction data available")
+                st.info("No transaction data available")
+        except Exception as e:
+            st.error(f"Error in Monthly Expenses view: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
 
 else:  # Budgeting & Forecasting view
     st.header("💱 Budgeting & Forecasting")
