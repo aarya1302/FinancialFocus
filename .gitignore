@@ -1,0 +1,46 @@
+# Python-related files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Streamlit-related files
+.streamlit/secrets.toml
+
+# Data files
+finance_data.json
+
+# Environment variables file
+.env
+
+# IDE/Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating system-related files
+.DS_Store
+Thumbs.db
