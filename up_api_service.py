@@ -127,20 +127,27 @@ def format_transactions_for_dashboard():
         
         category_name = category_lookup.get(category_id, 'Uncategorized') if category_id else 'Uncategorized'
         
-        formatted_data.append({
-            'date': transaction['attributes']['settledAt'][:10],  # Use just the date part
+        # Include the full datetime and message field
+        transaction_data = {
+            'date': pd.to_datetime(transaction['attributes']['settledAt']),
             'description': transaction['attributes']['description'],
             'amount': float(transaction['attributes']['amount']['value']),
             'category': category_name,
             'account_id': transaction['relationships']['account']['data']['id'],
-        })
+            'raw_text': transaction['attributes'].get('rawText', '')
+        }
+        
+        # Add message if available
+        if 'message' in transaction['attributes'] and transaction['attributes']['message']:
+            transaction_data['message'] = transaction['attributes']['message']
+        
+        formatted_data.append(transaction_data)
     
     # Convert to DataFrame for easier processing
     df = pd.DataFrame(formatted_data)
     
     # Add a month column for grouping
     if not df.empty:
-        df['date'] = pd.to_datetime(df['date'])
         df['month'] = df['date'].dt.strftime('%Y-%m')
     
     return df

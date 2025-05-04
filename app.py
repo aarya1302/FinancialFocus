@@ -68,56 +68,94 @@ if view_selection == "Expense Tracking":
     
     # Daily Expenses View
     with tracking_tab[0]:
-        st.subheader("Today's Expenses")
-        
         try:
             if not expenses_df.empty:
-                # Filter for today's date
-                today = datetime.now().date()
+                # Get the current month name and year
+                current_month = datetime.now().strftime("%B %Y")
                 
-                # Debug information
-                st.write(f"Debug: Today's date is {today}")
-                st.write(f"Debug: Expense DataFrame columns: {list(expenses_df.columns)}")
-                st.write(f"Debug: Date column type: {expenses_df['date'].dtype}")
-                st.write("Debug: First few rows of expenses DataFrame:")
-                st.write(expenses_df.head())
+                # Calculate the total spent this month
+                this_month_expenses = expenses_df[expenses_df['date'].dt.strftime('%Y-%m') == datetime.now().strftime('%Y-%m')].copy()
+                total_month = this_month_expenses['amount'].abs().sum()
                 
-                # Filter for today's expenses
-                today_expenses = expenses_df[expenses_df['date'].dt.date == today]
-                
-                if not today_expenses.empty:
-                    # Show today's expenses in a table
-                    today_expenses_display = today_expenses[['description', 'amount', 'category']].copy()
-                    today_expenses_display['amount'] = today_expenses_display['amount'].abs()
-                    today_expenses_display = today_expenses_display.rename(
-                        columns={'description': 'Description', 'amount': 'Amount ($)', 'category': 'Category'}
-                    )
-                    today_expenses_display = today_expenses_display.sort_values('Amount ($)', ascending=False)
-                    
-                    st.dataframe(today_expenses_display, use_container_width=True)
-                    
-                    # Show total spent today
-                    total_today = today_expenses_display['Amount ($)'].sum()
-                    st.metric("Total Spent Today", f"${total_today:.2f}")
+                # Calculate average monthly spending
+                previous_months = expenses_df['date'].dt.strftime('%Y-%m').unique()
+                if len(previous_months) > 1:
+                    usual_spending = this_month_expenses['amount'].abs().sum() / len(this_month_expenses)
+                    difference = total_month - usual_spending
+                    difference_text = f"${abs(difference):.2f} {'more' if difference > 0 else 'less'} than usual"
                 else:
-                    # If no expenses today, show recent expenses from last 3 days
-                    three_days_ago = today - timedelta(days=3)
-                    recent_expenses = expenses_df[(expenses_df['date'].dt.date >= three_days_ago) & 
-                                                (expenses_df['date'].dt.date <= today)]
+                    difference_text = ""
+                
+                # Display month summary at the top
+                month_col1, month_col2 = st.columns([3, 1])
+                with month_col1:
+                    st.markdown(f"### {current_month}")
+                    st.markdown(f"{len(this_month_expenses)} Transactions")
+                
+                with month_col2:
+                    st.markdown(f"### ${total_month:.2f}")
+                    if difference_text:
+                        st.markdown(f"*{difference_text}*")
+                
+                st.markdown("---")
+                
+                # Group transactions by date
+                this_month_expenses['date_str'] = this_month_expenses['date'].dt.date
+                grouped_dates = this_month_expenses.groupby('date_str')
+                
+                # Show transactions grouped by date
+                for date, transactions in grouped_dates:
+                    # Format the date header (e.g., "TUE, 6 MAY")
+                    date_obj = datetime.combine(date, datetime.min.time())
+                    date_header = date_obj.strftime("%a, %-d %B").upper()
                     
-                    if not recent_expenses.empty:
-                        st.info("No expenses recorded today. Here are your recent expenses:")
+                    st.markdown(f"#### {date_header}")
+                    
+                    # Display each transaction for this date
+                    for _, row in transactions.iterrows():
+                        col1, col2 = st.columns([4, 1])
                         
-                        recent_expenses_display = recent_expenses[['date', 'description', 'amount', 'category']].copy()
-                        recent_expenses_display['amount'] = recent_expenses_display['amount'].abs()
-                        recent_expenses_display = recent_expenses_display.rename(
-                            columns={'date': 'Date', 'description': 'Description', 'amount': 'Amount ($)', 'category': 'Category'}
-                        )
-                        recent_expenses_display = recent_expenses_display.sort_values('Date', ascending=False)
+                        with col1:
+                            # Transaction description and details with category emoji
+                            # Get emoji based on category
+                            category_emoji = "💼"
+                            if 'category' in row:
+                                category = row['category'].lower()
+                                if 'groceries' in category or 'food' in category:
+                                    category_emoji = "🛒"
+                                elif 'dining' in category or 'restaurant' in category:
+                                    category_emoji = "🍽️"
+                                elif 'transport' in category or 'travel' in category:
+                                    category_emoji = "🚗"
+                                elif 'entertainment' in category:
+                                    category_emoji = "🎬"
+                                elif 'utilities' in category:
+                                    category_emoji = "💡"
+                                elif 'housing' in category or 'rent' in category:
+                                    category_emoji = "🏠"
+                                elif 'income' in category or 'salary' in category:
+                                    category_emoji = "💰"
+                            
+                            st.markdown(f"{category_emoji} **{row['description']}**")
+                            
+                            # Add transaction time and message/category as subtext
+                            time_str = row['date'].strftime("%I:%M%p").lower()
+                            details = f"*{time_str}*"
+                            if 'message' in row and row['message']:
+                                details += f", *{row['message']}*"
+                            st.markdown(details)
                         
-                        st.dataframe(recent_expenses_display, use_container_width=True)
-                    else:
-                        st.info("No recent expenses found. Add some expenses to see them here.")
+                        with col2:
+                            # Amount with appropriate coloring and icon
+                            amount = abs(row['amount'])
+                            if row['amount'] < 0:
+                                # Red color with expense icon
+                                st.markdown(f"<span style='color:red'>🔴 ${amount:.2f}</span>", unsafe_allow_html=True)
+                            else:
+                                # Green color with income icon
+                                st.markdown(f"<span style='color:green'>🟢 ${amount:.2f}</span>", unsafe_allow_html=True)
+                    
+                    st.markdown("---")
             else:
                 st.info("No transaction data available")
         except Exception as e:
@@ -135,13 +173,8 @@ if view_selection == "Expense Tracking":
                 week_start = datetime.now().date() - timedelta(days=7)
                 week_end = datetime.now().date()
                 
-                # Debug information
-                st.write(f"Debug: Week start: {week_start}, Week end: {week_end}")
-                
                 weekly_expenses = expenses_df[(expenses_df['date'].dt.date >= week_start) & 
                                           (expenses_df['date'].dt.date <= week_end)].copy()
-                
-                st.write(f"Debug: Number of transactions in weekly view: {len(weekly_expenses)}")
                 
                 if not weekly_expenses.empty:
                     # Make amounts positive for visualization
@@ -200,7 +233,6 @@ if view_selection == "Expense Tracking":
                 
                 # Get monthly expenses by category
                 category_expenses = get_monthly_expenses_by_category()
-                st.write(f"Debug: Monthly category expenses: {category_expenses}")
                 
                 if category_expenses:
                     with col1:
