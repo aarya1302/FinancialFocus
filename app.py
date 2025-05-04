@@ -48,6 +48,31 @@ with st.sidebar:
         ["Expense Tracking", "Budgeting & Forecasting"]
     )
     
+    # Add a separator
+    st.markdown("---")
+    
+    # Check for Up Banking API token
+    import os
+    if not os.environ.get('UP_API_TOKEN'):
+        st.warning("""
+        ⚠️ **You're viewing mock data**
+        
+        For real banking data, you'll need an Up Banking API token.
+        Add the token to your environment variables as `UP_API_TOKEN`.
+        
+        [Get an Up Banking Token](https://api.up.com.au/getting_started)
+        """)
+    else:
+        st.success("✅ Connected to Up Banking API")
+        
+    # Add link to documentation    
+    st.markdown("""
+    ---
+    ### Documentation
+    * [Up Banking API Reference](https://developer.up.com.au)
+    * [Financial Guidelines](https://www.investopedia.com/terms/1/50-30-20-budget-rule.asp)
+    """)
+    
     st.markdown("---")
     st.markdown("""
     #### 💡 Data Source
@@ -290,14 +315,52 @@ if view_selection == "Expense Tracking":
                     if len(monthly_totals) > 1:
                         st.subheader("Month-over-Month Comparison")
                         monthly_totals = monthly_totals.sort_values('month', ascending=False)
-                        monthly_totals = monthly_totals.rename(columns={'amount': 'Total Spent ($)', 'month': 'Month'})
                         
-                        # Add month-over-month change
-                        monthly_totals['Previous Month ($)'] = monthly_totals['Total Spent ($)'].shift(-1)
-                        monthly_totals['Change (%)'] = ((monthly_totals['Total Spent ($)'] / monthly_totals['Previous Month ($)'] - 1) * 100).round(1)
-                        monthly_totals = monthly_totals.fillna('-')
+                        # Create a custom formatted table for display
+                        st.markdown("#### Monthly Spending Comparison")
                         
-                        st.dataframe(monthly_totals, use_container_width=True)
+                        # Display header
+                        cols = st.columns([2, 2, 2, 2])
+                        cols[0].markdown("**Month**")
+                        cols[1].markdown("**Total Spent**")
+                        cols[2].markdown("**Previous Month**")
+                        cols[3].markdown("**Change**")
+                        
+                        # Display data rows
+                        for i in range(len(monthly_totals)):
+                            row = monthly_totals.iloc[i]
+                            current_month = row['month']
+                            current_amount = row['amount']
+                            
+                            prev_amount = monthly_totals[monthly_totals['month'] == current_month]['amount'].iloc[0] if i < len(monthly_totals)-1 else None
+                            
+                            # Calculate change
+                            change_pct = 0
+                            if i < len(monthly_totals)-1:
+                                prev_amount = monthly_totals.iloc[i+1]['amount']
+                                if prev_amount > 0:
+                                    change_pct = ((current_amount / prev_amount) - 1) * 100
+                            
+                            # Create row
+                            cols = st.columns([2, 2, 2, 2])
+                            cols[0].markdown(f"{current_month}")
+                            cols[1].markdown(f"${current_amount:.2f}")
+                            
+                            if i < len(monthly_totals)-1:
+                                cols[2].markdown(f"${prev_amount:.2f}")
+                                
+                                # Format change
+                                if change_pct > 0:
+                                    cols[3].markdown(f":red[+{change_pct:.1f}%]")
+                                elif change_pct < 0:
+                                    cols[3].markdown(f":green[{change_pct:.1f}%]")
+                                else:
+                                    cols[3].markdown(f"{change_pct:.1f}%")
+                            else:
+                                cols[2].markdown(f"N/A")
+                                cols[3].markdown(f"N/A")
+                            
+                            st.markdown("---") if i < len(monthly_totals)-1 else None
                 else:
                     st.info("No expense data available for the current month")
             else:
