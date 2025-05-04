@@ -287,9 +287,10 @@ if view_selection == "Expense Tracking":
                     
                     # Add a day column for grouping
                     weekly_expenses['day'] = weekly_expenses['date'].dt.date
+                    weekly_expenses['day_name'] = weekly_expenses['date'].dt.strftime('%a')
                     
                     # Group by day and category
-                    daily_category_spend = weekly_expenses.groupby(['day', 'category'])['amount'].sum().reset_index()
+                    daily_category_spend = weekly_expenses.groupby(['day', 'day_name', 'category'])['amount'].sum().reset_index()
                     
                     # Create a stacked bar chart showing daily spending by category
                     fig = px.bar(
@@ -297,27 +298,37 @@ if view_selection == "Expense Tracking":
                         x='day',
                         y='amount',
                         color='category',
-                        title='Daily Spending by Category',
+                        title='Expenses by Day',
                         labels={'day': 'Date', 'amount': 'Amount ($)', 'category': 'Category'},
-                        color_discrete_sequence=px.colors.qualitative.Pastel
+                        color_discrete_sequence=px.colors.qualitative.Bold,
+                        text='category',  # Show category names in the bars
+                        barmode='stack'    # Ensure bars are stacked
                     )
-                    fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
+                    
+                    # Customize the layout for a cleaner look
+                    fig.update_layout(
+                        margin=dict(t=40, b=0, l=0, r=0),
+                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                        xaxis=dict(title="Day of Week", tickformat="%a, %b %d"),
+                        yaxis=dict(title="Amount ($)"),
+                        plot_bgcolor='white',
+                        bargap=0.2
+                    )
+                    
+                    # Hide category text inside small bars
+                    fig.update_traces(textposition='none')
+                    
+                    # Display the chart
                     st.plotly_chart(fig, use_container_width=True)
                     
                     # Calculate weekly total
                     weekly_total = weekly_expenses['amount'].sum()
                     
-                    # Show category breakdown for the week
-                    st.subheader("Category Breakdown for This Week")
-                    weekly_by_category = weekly_expenses.groupby('category')['amount'].sum().reset_index()
-                    weekly_by_category = weekly_by_category.sort_values('amount', ascending=False)
-                    weekly_by_category['percentage'] = (weekly_by_category['amount'] / weekly_total * 100).round(1)
-                    weekly_by_category = weekly_by_category.rename(
-                        columns={'amount': 'Amount ($)', 'category': 'Category', 'percentage': 'Percentage (%)'}
-                    )
-                    
-                    st.dataframe(weekly_by_category, use_container_width=True)
+                    # Show weekly summary
                     st.metric("Total Weekly Spending", f"${weekly_total:.2f}")
+                    
+                    # Add information about the date range
+                    st.markdown(f"*Showing data from {week_start.strftime('%B %d, %Y')} to {week_end.strftime('%B %d, %Y')}*")
                 else:
                     st.info("No expenses recorded in the past week.")
             else:
