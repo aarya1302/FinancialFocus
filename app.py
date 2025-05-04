@@ -20,6 +20,22 @@ st.set_page_config(
     layout="wide"
 )
 
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    /* Style for the date picker */
+    div[data-testid="stSelectbox"] {border: 1px solid #f0f2f6; border-radius: 10px; padding: 5px;}
+    div[data-testid="stSelectbox"] > div:first-child {background-color: #f7f7f7;}
+    div[data-testid="stSelectbox"]:hover {border: 1px solid #c0c6d3;}
+    
+    /* Improve transaction list appearance */
+    .transaction-row {padding: 10px 0; border-bottom: 1px solid #f0f2f6;}
+    
+    /* Make month headers stand out */
+    h3 {color: #2c3e50; margin-bottom: 10px;}
+</style>
+""", unsafe_allow_html=True)
+
 # App title and description
 st.title("💰 Personal Finance Dashboard")
 st.markdown("""
@@ -111,76 +127,140 @@ if view_selection == "Expense Tracking":
                 else:
                     difference_text = ""
                 
-                # Display month summary at the top
-                month_col1, month_col2 = st.columns([3, 1])
-                with month_col1:
-                    st.markdown(f"### {current_month}")
-                    st.markdown(f"{len(this_month_expenses)} Transactions")
-                
-                with month_col2:
-                    st.markdown(f"### ${total_month:.2f}")
-                    if difference_text:
-                        st.markdown(f"*{difference_text}*")
-                
-                st.markdown("---")
-                
-                # Group transactions by date
+                # Create date picker for selecting a specific day
+                # Get a list of dates that have transactions
                 this_month_expenses['date_str'] = this_month_expenses['date'].dt.date
-                grouped_dates = this_month_expenses.groupby('date_str')
+                unique_dates = sorted(this_month_expenses['date_str'].unique(), reverse=True)
                 
-                # Show transactions grouped by date
-                for date, transactions in grouped_dates:
-                    # Format the date header (e.g., "TUE, 6 MAY")
-                    date_obj = datetime.combine(date, datetime.min.time())
-                    date_header = date_obj.strftime("%a, %-d %B").upper()
+                if len(unique_dates) > 0:
+                    # Default to the most recent date with transactions
+                    default_date = unique_dates[0]
                     
-                    st.markdown(f"#### {date_header}")
+                    # Create a more stylish date selection UI
+                    st.markdown("### Select a Date")
                     
-                    # Display each transaction for this date
-                    for _, row in transactions.iterrows():
-                        col1, col2 = st.columns([4, 1])
+                    # Create a dial-style date picker with month, day, year
+                    date_cols = st.columns([2, 1, 1])
+                    
+                    # Get all available months from the data
+                    available_months = sorted(list(set([d.strftime("%B") for d in unique_dates])))
+                    # Get all available days from the data
+                    available_days = sorted(list(set([d.day for d in unique_dates])))
+                    # Get all available years from the data
+                    available_years = sorted(list(set([d.year for d in unique_dates])))
+                    
+                    # Default values based on most recent date
+                    default_month = default_date.strftime("%B")
+                    default_day = default_date.day
+                    default_year = default_date.year
+                    
+                    # Create the selection widgets
+                    with date_cols[0]:
+                        selected_month = st.selectbox("Month", available_months, 
+                                                    index=available_months.index(default_month),
+                                                    key="month_select")
+                    with date_cols[1]:
+                        selected_day = st.selectbox("Day", available_days,
+                                                  index=available_days.index(default_day) if default_day in available_days else 0,
+                                                  key="day_select")
+                    with date_cols[2]:
+                        selected_year = st.selectbox("Year", available_years,
+                                                   index=available_years.index(default_year),
+                                                   key="year_select")
+                    
+                    # Try to create a valid date from the selections
+                    try:
+                        month_num = datetime.strptime(selected_month, "%B").month
+                        selected_date = datetime(selected_year, month_num, selected_day).date()
                         
-                        with col1:
-                            # Transaction description and details with category emoji
-                            # Get emoji based on category
-                            category_emoji = "💼"
-                            if 'category' in row:
-                                category = row['category'].lower()
-                                if 'groceries' in category or 'food' in category:
-                                    category_emoji = "🛒"
-                                elif 'dining' in category or 'restaurant' in category:
-                                    category_emoji = "🍽️"
-                                elif 'transport' in category or 'travel' in category:
-                                    category_emoji = "🚗"
-                                elif 'entertainment' in category:
-                                    category_emoji = "🎬"
-                                elif 'utilities' in category:
-                                    category_emoji = "💡"
-                                elif 'housing' in category or 'rent' in category:
-                                    category_emoji = "🏠"
-                                elif 'income' in category or 'salary' in category:
-                                    category_emoji = "💰"
-                            
-                            st.markdown(f"{category_emoji} **{row['description']}**")
-                            
-                            # Add transaction time and message/category as subtext
-                            time_str = row['date'].strftime("%I:%M%p").lower()
-                            details = f"*{time_str}*"
-                            if 'message' in row and row['message']:
-                                details += f", *{row['message']}*"
-                            st.markdown(details)
-                        
-                        with col2:
-                            # Amount with appropriate coloring and icon
-                            amount = abs(row['amount'])
-                            if row['amount'] < 0:
-                                # Red color with expense icon
-                                st.markdown(f"<span style='color:red'>🔴 ${amount:.2f}</span>", unsafe_allow_html=True)
-                            else:
-                                # Green color with income icon
-                                st.markdown(f"<span style='color:green'>🟢 ${amount:.2f}</span>", unsafe_allow_html=True)
+                        # Check if this date has transactions
+                        if selected_date not in unique_dates:
+                            # Find closest date with transactions
+                            closest_date = min(unique_dates, key=lambda x: abs((x - selected_date).days))
+                            st.info(f"No transactions on {selected_date}. Showing transactions for {closest_date} instead.")
+                            selected_date = closest_date
+                    except ValueError:
+                        # Handle invalid date (e.g., February 30)
+                        st.warning("Invalid date combination. Showing most recent transactions instead.")
+                        selected_date = default_date
+                    
+                    # Get total for the selected date and display summary
+                    day_expenses = this_month_expenses[this_month_expenses['date_str'] == selected_date]
+                    day_total = day_expenses['amount'].abs().sum()
+                    
+                    # Display totals and transaction count in a nice layout
+                    summary_cols = st.columns([3, 1])
+                    with summary_cols[0]:
+                        st.markdown(f"**{len(day_expenses)} transactions on selected date**")
+                    with summary_cols[1]:
+                        st.markdown(f"### ${day_total:.2f}")
                     
                     st.markdown("---")
+                    
+                    # Format the date header (e.g., "TUE, 6 MAY")
+                    date_obj = datetime.combine(selected_date, datetime.min.time())
+                    date_header = date_obj.strftime("%A, %B %-d, %Y").upper()
+                    st.markdown(f"#### {date_header}")
+                    
+                    # Check if there are transactions for this date
+                    if not day_expenses.empty:
+                        # Display each transaction for this date
+                        for idx, row in day_expenses.iterrows():
+                            # Wrap each transaction in a styled container
+                            st.markdown("<div class='transaction-row'></div>", unsafe_allow_html=True)
+                            
+                            col1, col2 = st.columns([4, 1])
+                            
+                            with col1:
+                                # Transaction description and details with category emoji
+                                # Get emoji based on category
+                                category_emoji = "💼"
+                                if 'category' in row:
+                                    category = row['category'].lower()
+                                    if 'groceries' in category or 'food' in category:
+                                        category_emoji = "🛒"
+                                    elif 'dining' in category or 'restaurant' in category:
+                                        category_emoji = "🍽️"
+                                    elif 'transport' in category or 'travel' in category:
+                                        category_emoji = "🚗"
+                                    elif 'entertainment' in category:
+                                        category_emoji = "🎬"
+                                    elif 'utilities' in category:
+                                        category_emoji = "💡"
+                                    elif 'housing' in category or 'rent' in category:
+                                        category_emoji = "🏠"
+                                    elif 'income' in category or 'salary' in category:
+                                        category_emoji = "💰"
+                                
+                                # Apply more appealing styling to the transaction description
+                                st.markdown(f"<div style='margin-bottom:4px'>{category_emoji} <strong>{row['description']}</strong></div>", 
+                                            unsafe_allow_html=True)
+                                
+                                # Add transaction time and message/category as subtext with lighter color
+                                time_str = row['date'].strftime("%I:%M%p").lower()
+                                details = f"{time_str}"
+                                if 'message' in row and row['message']:
+                                    details += f", {row['message']}"
+                                st.markdown(f"<span style='color:#7a7a7a; font-size:0.9em'>{details}</span>", 
+                                            unsafe_allow_html=True)
+                            
+                            with col2:
+                                # Amount with appropriate coloring and icon
+                                amount = abs(row['amount'])
+                                if row['amount'] < 0:
+                                    # Red color with expense icon
+                                    st.markdown(f"<div style='text-align:right'><span style='color:red; font-weight:500'>🔴 ${amount:.2f}</span></div>", 
+                                                unsafe_allow_html=True)
+                                else:
+                                    # Green color with income icon
+                                    st.markdown(f"<div style='text-align:right'><span style='color:green; font-weight:500'>🟢 ${amount:.2f}</span></div>", 
+                                                unsafe_allow_html=True)
+                        
+                        st.markdown("---")
+                    else:
+                        st.info(f"No transactions found for {selected_date}")
+                else:
+                    st.info("No transaction data available for this month")
             else:
                 st.info("No transaction data available")
         except Exception as e:
