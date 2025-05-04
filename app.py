@@ -467,15 +467,3 @@ st.markdown("""
 - **Emergency fund first**: Build 3-6 months of expenses before other financial goals
 - **Automate savings**: Set up automatic transfers to savings on payday
 """)
-
-# Footer with tips
-st.markdown("---")
-st.markdown("""
-#### 💡 Quick Financial Tips:
-
-- **Track consistently**: Regular monitoring is key to financial awareness
-- **Review weekly**: Weekly reviews help catch overspending early
-- **Adjust as needed**: Adapt your budget as your circumstances change
-- **Emergency fund first**: Build 3-6 months of expenses before other financial goals
-- **Automate savings**: Set up automatic transfers to savings on payday
-""")

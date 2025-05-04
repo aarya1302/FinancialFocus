@@ -16,22 +16,83 @@ def get_accounts():
     """Get accounts data from Up API or mock data"""
     if USE_MOCK_DATA:
         return get_accounts_data()
-    # API implementation would go here if token available
-    return get_accounts_data()
+    
+    # Use real API
+    import requests
+    
+    url = "https://api.up.com.au/api/v1/accounts"
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise an error for bad responses
+        return response.json()
+    except Exception as e:
+        print(f"Error fetching accounts: {str(e)}")
+        # Fallback to mock data if API fails
+        return get_accounts_data()
 
 def get_transactions():
     """Get transactions data from Up API or mock data"""
     if USE_MOCK_DATA:
         return get_transactions_data()
-    # API implementation would go here if token available
-    return get_transactions_data()
+    
+    # Use real API
+    import requests
+    
+    url = "https://api.up.com.au/api/v1/transactions?page[size]=100"
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}"
+    }
+    
+    try:
+        # Initial request
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        all_transactions = data['data']
+        
+        # Fetch additional pages if available
+        while 'next' in data['links'] and data['links']['next']:
+            response = requests.get(data['links']['next'], headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            all_transactions.extend(data['data'])
+            
+            # Limit to 500 transactions to avoid excessive API calls
+            if len(all_transactions) >= 500:
+                break
+        
+        # Return in the same format as mock data
+        return {'data': all_transactions}
+    except Exception as e:
+        print(f"Error fetching transactions: {str(e)}")
+        # Fallback to mock data if API fails
+        return get_transactions_data()
 
 def get_categories():
     """Get categories data from Up API or mock data"""
     if USE_MOCK_DATA:
         return get_categories_data()
-    # API implementation would go here if token available
-    return get_categories_data()
+    
+    # Use real API
+    import requests
+    
+    url = "https://api.up.com.au/api/v1/categories"
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Error fetching categories: {str(e)}")
+        # Fallback to mock data if API fails
+        return get_categories_data()
 
 def get_total_balance():
     """Calculate total balance across all accounts"""
