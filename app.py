@@ -97,6 +97,9 @@ with st.sidebar:
     For real usage, you would connect to your Up Banking account.
     """)
 
+    # Add a debug toggle to the sidebar
+    debug_mode = st.checkbox('Enable Debug View')
+
 # Load and process data for visualizations
 expenses_df = format_transactions_for_dashboard()
 
@@ -186,7 +189,11 @@ if view_selection == "Expense Tracking":
                     
                     # Get total for the selected date and display summary
                     day_expenses = this_month_expenses[this_month_expenses['date_str'] == selected_date]
-                    day_total = day_expenses['amount'].abs().sum()
+                    day_total = day_expenses['amount'].sum()
+
+                    # Debug: Show the raw data for the selected day
+                    st.subheader('Debug: Raw Data for Selected Day')
+                    st.write(day_expenses)
                     
                     # Display totals and transaction count in a nice layout
                     summary_cols = st.columns([3, 1])
@@ -684,3 +691,23 @@ st.markdown("""
 - **Emergency fund first**: Build 3-6 months of expenses before other financial goals
 - **Automate savings**: Set up automatic transfers to savings on payday
 """)
+
+if debug_mode:
+    st.header('🐞 Debug View')
+    import up_api_service
+    st.subheader('Environment Info')
+    api_token = getattr(up_api_service, 'API_TOKEN', None)
+    st.write({'API_TOKEN (masked)': api_token[:6] + '...' if api_token else None,
+              'USE_MOCK_DATA': getattr(up_api_service, 'USE_MOCK_DATA', None)})
+
+    st.subheader('Raw API Data')
+    st.write('Accounts:')
+    st.json(up_api_service.get_accounts())
+    st.write('Categories:')
+    st.json(up_api_service.get_categories())
+    st.write('Transactions:')
+    st.json(up_api_service.get_transactions())
+
+    st.subheader('Processed DataFrames')
+    st.write('expenses_df:')
+    st.write(expenses_df)
