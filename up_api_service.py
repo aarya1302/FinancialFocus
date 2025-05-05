@@ -9,8 +9,8 @@ import json
 from mock_data import get_accounts_data, get_transactions_data, get_categories_data
 
 # Check if we have an API token or should use mock data
-API_TOKEN = os.environ.get('UP_API_TOKEN')
-USE_MOCK_DATA = API_TOKEN is None
+API_TOKEN = 'up:yeah:uBuNfAMrvjp7sj38VtMaGfwDHX8ByNVT9oNrRFVcW3qNgMW1drKvKtTCA9fmaEwHVlTEVa33aYQjHgN4uWUiQ2WWw8POBbiRDHpz7jo9vSBhQvpsCE1cVcYDuG5Thjf5'
+USE_MOCK_DATA = False
 
 def get_accounts():
     """Get accounts data from Up API or mock data"""
@@ -129,7 +129,7 @@ def format_transactions_for_dashboard():
         
         # Include the full datetime and message field
         transaction_data = {
-            'date': pd.to_datetime(transaction['attributes']['settledAt']),
+            'date': pd.to_datetime(transaction['attributes']['settledAt'], utc=True),
             'description': transaction['attributes']['description'],
             'amount': float(transaction['attributes']['amount']['value']),
             'category': category_name,
@@ -148,6 +148,7 @@ def format_transactions_for_dashboard():
     
     # Add a month column for grouping
     if not df.empty:
+        df['date'] = pd.to_datetime(df['date'])
         df['month'] = df['date'].dt.strftime('%Y-%m')
     
     return df
