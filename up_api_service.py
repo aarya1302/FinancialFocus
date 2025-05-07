@@ -7,6 +7,7 @@ from datetime import datetime
 import os
 import json
 from mock_data import get_accounts_data, get_transactions_data, get_categories_data
+import streamlit as st
 
 # Check if we have an API token or should use mock data
 API_TOKEN = 'up:yeah:uBuNfAMrvjp7sj38VtMaGfwDHX8ByNVT9oNrRFVcW3qNgMW1drKvKtTCA9fmaEwHVlTEVa33aYQjHgN4uWUiQ2WWw8POBbiRDHpz7jo9vSBhQvpsCE1cVcYDuG5Thjf5'
@@ -128,13 +129,18 @@ def format_transactions_for_dashboard():
         category_name = category_lookup.get(category_id, 'Uncategorized') if category_id else 'Uncategorized'
         
         # Include the full datetime and message field
+        settled_at = transaction['attributes'].get('settledAt')
+        created_at = transaction['attributes'].get('createdAt')
+        date_value = settled_at or created_at or None
         transaction_data = {
-            'date': pd.to_datetime(transaction['attributes']['settledAt'], utc=True),
+            'date': pd.to_datetime(date_value, utc=True) if date_value else None,
             'description': transaction['attributes']['description'],
             'amount': float(transaction['attributes']['amount']['value']),
             'category': category_name,
             'account_id': transaction['relationships']['account']['data']['id'],
-            'raw_text': transaction['attributes'].get('rawText', '')
+            'raw_text': transaction['attributes'].get('rawText', ''),
+            'tags': [tag['id'] for tag in transaction['relationships'].get('tags', {}).get('data', [])] if 'tags' in transaction['relationships'] else [],
+            'transactionType': transaction['attributes'].get('transactionType', '')
         }
         
         # Add message if available
@@ -154,26 +160,34 @@ def format_transactions_for_dashboard():
     return df
 
 def get_monthly_income():
-    """Calculate monthly income from transactions"""
+    """Calculate monthly income from salary transactions only"""
     df = format_transactions_for_dashboard()
-    
     if df.empty:
         return 0.0
-    
-    # Filter income transactions (positive amounts)
-    income_df = df[df['amount'] > 0]
-    
-    # Get current month's income or most recent month if current month has no data
+    # Only include salary transactions for the current month
     current_month = datetime.now().strftime('%Y-%m')
-    monthly_income = income_df[income_df['month'] == current_month]['amount'].sum()
-    
-    # If no income for current month, use most recent month with income
-    if monthly_income == 0 and not income_df.empty:
-        most_recent_month = income_df['month'].max()
-        monthly_income = income_df[income_df['month'] == most_recent_month]['amount'].sum()
-    
+    salary_df = df[(df['transactionType'] == 'Salary') & (df['month'] == current_month)]
+    monthly_income = salary_df['amount'].sum()
     return monthly_income
 
+def get_estimated_annual_income():
+    """Estimate annual income by summing all salary transactions for the previous month and multiplying by 12"""
+    df = format_transactions_for_dashboard()
+    if df.empty:
+        return 0.0, 0.0, [], pd.DataFrame(), None
+    # Only include salary transactions
+    salary_df = df[df['transactionType'] == 'Salary']
+   
+    # Find the previous month with salary
+    all_months = sorted(salary_df['month'].unique())
+    if len(all_months) < 2:
+        # Not enough data for previous month, fallback to most recent
+        prev_month = all_months[-1]
+    else:
+        prev_month = all_months[-2]
+    prev_salary_df = salary_df[salary_df['month'] == prev_month]
+    monthly_salary = prev_salary_df['amount'].sum()
+    return monthly_salary * 12
 def get_monthly_expenses_by_category():
     """Get monthly expenses grouped by category"""
     df = format_transactions_for_dashboard()
@@ -216,3 +230,34 @@ def get_monthly_spending_trends():
     monthly_data = expenses_df.groupby(['month', 'category'])['amount'].sum().reset_index()
     
     return monthly_data
+
+def debug_up_api_service():
+    st.header("🐞 up_api_service.py Debug View")
+    df = format_transactions_for_dashboard()
+    st.subheader("All Transactions DataFrame")
+    st.write(df)
+    st.subheader("Salary Transactions DataFrame")
+    salary_df = df[df['transactionType'] == 'Salary']
+    st.write(salary_df)
+    current_month = datetime.now().strftime('%Y-%m')
+    st.write(df[(df['transactionType'] == 'Salary') & (df['month'] == current_month)])
+
+    st.subheader("All Months with Salary Transactions")
+    all_months = sorted(salary_df['month'].unique())
+    st.write(all_months)
+    st.subheader("Previous Month Used for Annual Income")
+    if len(all_months) < 2:
+        prev_month = all_months[-1] if all_months else None
+    else:
+        prev_month = all_months[-2]
+    st.write(prev_month)
+    st.subheader("Annual Income Calculation")
+    if prev_month:
+        prev_salary_df = salary_df[salary_df['month'] == prev_month]
+        monthly_salary = prev_salary_df['amount'].sum()
+        st.write({
+            "monthly_salary": monthly_salary,
+            "estimated_annual_income": monthly_salary * 12
+        })
+    else:
+        st.write("No salary data available for annual income calculation.")

@@ -9,10 +9,12 @@ from up_api_service import (
     get_monthly_income,
     get_monthly_expenses_by_category,
     get_monthly_spending_trends,
-    get_total_balance
+    get_total_balance,
+    get_estimated_annual_income, 
+    debug_up_api_service
 )
 from finance_recommendations import calculate_spending_limits
-
+import up_api_service
 # Page configuration
 st.set_page_config(
     page_title="Personal Finance Dashboard",
@@ -51,12 +53,21 @@ with st.sidebar:
     total_balance = get_total_balance()
     st.metric("Total Balance", f"${total_balance:.2f}")
     
-    # Get monthly income
+    # Get monthly income (salary only)
     monthly_income = get_monthly_income()
     st.metric("Monthly Income", f"${monthly_income:.2f}")
     
-    # Calculate estimated annual income
-    st.metric("Estimated Annual Income", f"${monthly_income * 12:.2f}")
+    # Calculate estimated annual income (salary only, based on most recent month * 12)
+    
+    
+    annual_income_data = get_estimated_annual_income()
+    st.metric("Annual Income", f"${annual_income_data:.2f}")
+    
+    st.caption("Monthly Income: Sum of all transactions with transactionType 'salary' for the current month.\nEstimated Annual Income: Sum of all 'salary' transactions for the previous month × 12.")
+
+    
+    # Add a note about how these are calculated
+    st.caption("Monthly Income: Sum of all transactions with transactionType 'salary' for the current month.\nEstimated Annual Income: Sum of all 'salary' transactions for the most recent month × 12.")
     
     # Navigation tabs in sidebar
     view_selection = st.radio(
@@ -98,7 +109,7 @@ with st.sidebar:
     """)
 
     # Add a debug toggle to the sidebar
-    debug_mode = st.checkbox('Enable Debug View')
+    debug_mode = True#st.checkbox('Enable Debug View')
 
 # Load and process data for visualizations
 expenses_df = format_transactions_for_dashboard()
@@ -186,9 +197,9 @@ if view_selection == "Expense Tracking":
                         # Handle invalid date (e.g., February 30)
                         st.warning("Invalid date combination. Showing most recent transactions instead.")
                         selected_date = default_date
-                    
+                  
                     # Get total for the selected date and display summary
-                    day_expenses = this_month_expenses[this_month_expenses['date_str'] == selected_date]
+                    day_expenses = this_month_expenses[(this_month_expenses['date_str'] == selected_date) & (this_month_expenses['transactionType'] != 'Transfer') & (this_month_expenses['transactionType'] != 'Round Up')]
                     day_total = day_expenses['amount'].sum()
 
                     # Debug: Show the raw data for the selected day
@@ -208,6 +219,7 @@ if view_selection == "Expense Tracking":
                     date_obj = datetime.combine(selected_date, datetime.min.time())
                     date_header = date_obj.strftime("%A, %B %-d, %Y").upper()
                     st.markdown(f"#### {date_header}")
+                    st.info("Only transactions coming in and out of your bank account are included. Transfers or round ups between savings accounts (e.g., 'Transfer', 'Round Up') are excluded from this view.")
                     
                     # Check if there are transactions for this date
                     if not day_expenses.empty:
@@ -694,7 +706,7 @@ st.markdown("""
 
 if debug_mode:
     st.header('🐞 Debug View')
-    import up_api_service
+    debug_up_api_service()
     st.subheader('Environment Info')
     api_token = getattr(up_api_service, 'API_TOKEN', None)
     st.write({'API_TOKEN (masked)': api_token[:6] + '...' if api_token else None,
@@ -707,7 +719,10 @@ if debug_mode:
     st.json(up_api_service.get_categories())
     st.write('Transactions:')
     st.json(up_api_service.get_transactions())
-
+    st.write("Annual Income:")
+    st.write(up_api_service.get_estimated_annual_income())
     st.subheader('Processed DataFrames')
     st.write('expenses_df:')
     st.write(expenses_df)
+ 
+
