@@ -15,6 +15,8 @@ from up_api_service import (
 )
 from finance_recommendations import calculate_spending_limits
 import up_api_service
+import pytz
+
 # Page configuration
 st.set_page_config(
     page_title="Personal Finance Dashboard",
@@ -109,7 +111,7 @@ with st.sidebar:
     """)
 
     # Add a debug toggle to the sidebar
-    debug_mode = True#st.checkbox('Enable Debug View')
+    debug_mode = st.checkbox('Enable Debug View')
 
 # Load and process data for visualizations
 expenses_df = format_transactions_for_dashboard()
@@ -293,23 +295,28 @@ if view_selection == "Expense Tracking":
         
         try:
             if not expenses_df.empty:
-                # Get the current week's data (last 7 days)
-                week_start = datetime.now().date() - timedelta(days=7)
-                week_end = datetime.now().date()
+                perth_tz = pytz.timezone("Australia/Perth")
+                # Convert the 'date' column to Perth time zone
+                expenses_df['date_perth'] = expenses_df['date'].dt.tz_convert(perth_tz)
+                today_perth = datetime.now(perth_tz).date()
+                # Set week_start to the most recent Monday and week_end to the upcoming Sunday
+                week_start = today_perth - timedelta(days=today_perth.weekday())
+                week_end = week_start + timedelta(days=6)
                 
-                weekly_expenses = expenses_df[(expenses_df['date'].dt.date >= week_start) & 
-                                          (expenses_df['date'].dt.date <= week_end)].copy()
-                
+                weekly_expenses = expenses_df[
+                    (expenses_df['date_perth'].dt.date >= week_start) &
+                    (expenses_df['date_perth'].dt.date <= week_end) &
+                    (~expenses_df['transactionType'].isin(['Transfer', 'Round Up']))
+                ].copy()
+   
                 if not weekly_expenses.empty:
-                    # Make amounts positive for visualization
-                    weekly_expenses['amount'] = weekly_expenses['amount'].abs()
-                    
                     # Add a day column for grouping
                     weekly_expenses['day'] = weekly_expenses['date'].dt.date
                     weekly_expenses['day_name'] = weekly_expenses['date'].dt.strftime('%a')
                     
-                    # Group by day and category
-                    daily_category_spend = weekly_expenses.groupby(['day', 'day_name', 'category'])['amount'].sum().reset_index()
+                    # Before grouping for the chart, filter for expenses only
+                    weekly_expenses_expense_only = weekly_expenses[weekly_expenses['amount'] < 0]
+                    daily_category_spend = weekly_expenses_expense_only.groupby(['day', 'day_name', 'category'])['amount'].sum().reset_index()
                     
                     # Create a stacked bar chart showing daily spending by category
                     fig = px.bar(
@@ -339,15 +346,21 @@ if view_selection == "Expense Tracking":
                     
                     # Display the chart
                     st.plotly_chart(fig, use_container_width=True)
+                    st.write(weekly_expenses)
                     
                     # Calculate weekly total
-                    weekly_total = weekly_expenses['amount'].sum()
+                    weekly_total = weekly_expenses[weekly_expenses['amount'] < 0]['amount'].abs().sum()
                     
                     # Show weekly summary
                     st.metric("Total Weekly Spending", f"${weekly_total:.2f}")
                     
                     # Add information about the date range
                     st.markdown(f"*Showing data from {week_start.strftime('%B %d, %Y')} to {week_end.strftime('%B %d, %Y')}*")
+                    
+                    # Get categories shown in the bar chart
+                    categories_in_chart = daily_category_spend['category'].unique()
+                 
+               
                 else:
                     st.info("No expenses recorded in the past week.")
             else:

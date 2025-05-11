@@ -196,7 +196,7 @@ def get_monthly_expenses_by_category():
         return {}
     
     # Filter expense transactions (negative amounts) and make them positive for easier processing
-    expenses_df = df[df['amount'] < 0].copy()
+    expenses_df = df[(df['amount'] < 0) & (~df['transactionType'].isin(['Transfer', 'Round Up']))].copy()
     expenses_df['amount'] = expenses_df['amount'].abs()
     
     # Get current month's expenses
