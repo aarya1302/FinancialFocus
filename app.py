@@ -116,6 +116,13 @@ with st.sidebar:
 # Load and process data for visualizations
 expenses_df = format_transactions_for_dashboard()
 
+today = datetime.now()
+# Find the Monday of the current week
+monday = today - timedelta(days=today.weekday())
+# List all days in the current week (Monday to Sunday)
+week_days = [(monday + timedelta(days=i)).strftime("%a") for i in range(7)]
+week_dates = [(monday + timedelta(days=i)).date() for i in range(7)]
+
 # Define the two main sections based on user selection
 if view_selection == "Expense Tracking":
     st.header("📃 Expense Tracking")
@@ -143,145 +150,44 @@ if view_selection == "Expense Tracking":
                 else:
                     difference_text = ""
                 
-                # Create date picker for selecting a specific day
-                # Get a list of dates that have transactions
-                this_month_expenses['date_str'] = this_month_expenses['date'].dt.date
-                unique_dates = sorted(this_month_expenses['date_str'].unique(), reverse=True)
-                
-                if len(unique_dates) > 0:
-                    # Default to the most recent date with transactions
-                    default_date = unique_dates[0]
-                    
-                    # Create a more stylish date selection UI
-                    st.markdown("### Select a Date")
-                    
-                    # Create a dial-style date picker with month, day, year
-                    date_cols = st.columns([2, 1, 1])
-                    
-                    # Get all available months from the data
-                    available_months = sorted(list(set([d.strftime("%B") for d in unique_dates])))
-                    # Get all available days from the data
-                    available_days = sorted(list(set([d.day for d in unique_dates])))
-                    # Get all available years from the data
-                    available_years = sorted(list(set([d.year for d in unique_dates])))
-                    
-                    # Default values based on most recent date
-                    default_month = default_date.strftime("%B")
-                    default_day = default_date.day
-                    default_year = default_date.year
-                    
-                    # Create the selection widgets
-                    with date_cols[0]:
-                        selected_month = st.selectbox("Month", available_months, 
-                                                    index=available_months.index(default_month),
-                                                    key="month_select")
-                    with date_cols[1]:
-                        selected_day = st.selectbox("Day", available_days,
-                                                  index=available_days.index(default_day) if default_day in available_days else 0,
-                                                  key="day_select")
-                    with date_cols[2]:
-                        selected_year = st.selectbox("Year", available_years,
-                                                   index=available_years.index(default_year),
-                                                   key="year_select")
-                    
-                    # Try to create a valid date from the selections
-                    try:
-                        month_num = datetime.strptime(selected_month, "%B").month
-                        selected_date = datetime(selected_year, month_num, selected_day).date()
-                        
-                        # Check if this date has transactions
-                        if selected_date not in unique_dates:
-                            # Find closest date with transactions
-                            closest_date = min(unique_dates, key=lambda x: abs((x - selected_date).days))
-                            st.info(f"No transactions on {selected_date}. Showing transactions for {closest_date} instead.")
-                            selected_date = closest_date
-                    except ValueError:
-                        # Handle invalid date (e.g., February 30)
-                        st.warning("Invalid date combination. Showing most recent transactions instead.")
-                        selected_date = default_date
-                  
-                    # Get total for the selected date and display summary
-                    day_expenses = this_month_expenses[(this_month_expenses['date_str'] == selected_date) & (this_month_expenses['transactionType'] != 'Transfer') & (this_month_expenses['transactionType'] != 'Round Up')]
-                    day_total = day_expenses['amount'].sum()
+                # Get unique days in the current month with transactions
+                unique_days = sorted(this_month_expenses['date'].dt.day.unique())
+                if 'selected_day' not in st.session_state:
+                    st.session_state['selected_day'] = week_days[today.weekday()]
+                selected_day_label = st.session_state['selected_day']
+                selected_day_index = week_days.index(selected_day_label)
+                selected_date = week_dates[selected_day_index]
 
-                    # Debug: Show the raw data for the selected day
-                    st.subheader('Debug: Raw Data for Selected Day')
-                    st.write(day_expenses)
-                    
-                    # Display totals and transaction count in a nice layout
-                    summary_cols = st.columns([3, 1])
-                    with summary_cols[0]:
-                        st.markdown(f"**{len(day_expenses)} transactions on selected date**")
-                    with summary_cols[1]:
-                        st.markdown(f"### ${day_total:.2f}")
-                    
-                    st.markdown("---")
-                    
-                    # Format the date header (e.g., "TUE, 6 MAY")
-                    date_obj = datetime.combine(selected_date, datetime.min.time())
-                    date_header = date_obj.strftime("%A, %B %-d, %Y").upper()
-                    st.markdown(f"#### {date_header}")
-                    st.info("Only transactions coming in and out of your bank account are included. Transfers or round ups between savings accounts (e.g., 'Transfer', 'Round Up') are excluded from this view.")
-                    
-                    # Check if there are transactions for this date
-                    if not day_expenses.empty:
-                        # Display each transaction for this date
-                        for idx, row in day_expenses.iterrows():
-                            # Wrap each transaction in a styled container
-                            st.markdown("<div class='transaction-row'></div>", unsafe_allow_html=True)
-                            
-                            col1, col2 = st.columns([4, 1])
-                            
-                            with col1:
-                                # Transaction description and details with category emoji
-                                # Get emoji based on category
-                                category_emoji = "💼"
-                                if 'category' in row:
-                                    category = row['category'].lower()
-                                    if 'groceries' in category or 'food' in category:
-                                        category_emoji = "🛒"
-                                    elif 'dining' in category or 'restaurant' in category:
-                                        category_emoji = "🍽️"
-                                    elif 'transport' in category or 'travel' in category:
-                                        category_emoji = "🚗"
-                                    elif 'entertainment' in category:
-                                        category_emoji = "🎬"
-                                    elif 'utilities' in category:
-                                        category_emoji = "💡"
-                                    elif 'housing' in category or 'rent' in category:
-                                        category_emoji = "🏠"
-                                    elif 'income' in category or 'salary' in category:
-                                        category_emoji = "💰"
-                                
-                                # Apply more appealing styling to the transaction description
-                                st.markdown(f"<div style='margin-bottom:4px'>{category_emoji} <strong>{row['description']}</strong></div>", 
-                                            unsafe_allow_html=True)
-                                
-                                # Add transaction time and message/category as subtext with lighter color
-                                time_str = row['date'].strftime("%I:%M%p").lower()
-                                details = f"{time_str}"
-                                if 'message' in row and row['message']:
-                                    details += f", {row['message']}"
-                                st.markdown(f"<span style='color:#7a7a7a; font-size:0.9em'>{details}</span>", 
-                                            unsafe_allow_html=True)
-                            
-                            with col2:
-                                # Amount with appropriate coloring and icon
-                                amount = abs(row['amount'])
-                                if row['amount'] < 0:
-                                    # Red color with expense icon
-                                    st.markdown(f"<div style='text-align:right'><span style='color:red; font-weight:500'>🔴 ${amount:.2f}</span></div>", 
-                                                unsafe_allow_html=True)
-                                else:
-                                    # Green color with income icon
-                                    st.markdown(f"<div style='text-align:right'><span style='color:green; font-weight:500'>🟢 ${amount:.2f}</span></div>", 
-                                                unsafe_allow_html=True)
-                        
-                        st.markdown("---")
-                    else:
-                        st.info(f"No transactions found for {selected_date}")
-                else:
-                    st.info("No transaction data available for this month")
+                # Filter transactions for the selected day, excluding 'Transfer' and 'Round Up'
+                selected_date_df = this_month_expenses[
+                    (this_month_expenses['date'].dt.date == selected_date) &
+                    (~this_month_expenses['transactionType'].isin(['Transfer', 'Round Up']))
+                ]
+                day_total = selected_date_df['amount'].sum()
+                st.info("Only transactions coming in and out of your bank account are included. Transfers or round ups between savings accounts (e.g., 'Transfer', 'Round Up') are excluded from this view.")
+                # Show total spend
+                 # Display totals and transaction count in a nice layout
+                summary_cols = st.columns([3, 1])
+                with summary_cols[0]:
+                    st.markdown(f"**{len(selected_date_df)} transactions on selected date**")
+                with summary_cols[1]:
+                    st.markdown(f"### ${day_total:.2f}")
+                
+                # Show transaction list with reduced padding
+                for idx, row in selected_date_df.iterrows():
+                    st.markdown(
+                        f"<div style='padding:4px 0; border-bottom:1px solid #eee;'>"
+                        f"<b>{row['description']}</b> <span style='float:right;'>${row['amount']:.2f}</span>"
+                        f"</div>", unsafe_allow_html=True
+                    )
+                
+            
+                
+               
+               
+                
+                
+               
             else:
                 st.info("No transaction data available")
         except Exception as e:
@@ -317,6 +223,7 @@ if view_selection == "Expense Tracking":
                     # Before grouping for the chart, filter for expenses only
                     weekly_expenses_expense_only = weekly_expenses[weekly_expenses['amount'] < 0]
                     daily_category_spend = weekly_expenses_expense_only.groupby(['day', 'day_name', 'category'])['amount'].sum().reset_index()
+                    daily_category_spend['amount'] = daily_category_spend['amount'].abs()  # Ensure all amounts are positive
                     
                     # Create a stacked bar chart showing daily spending by category
                     fig = px.bar(
@@ -337,22 +244,24 @@ if view_selection == "Expense Tracking":
                         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
                         xaxis=dict(title="Day of Week", tickformat="%a, %b %d"),
                         yaxis=dict(title="Amount ($)"),
-                        plot_bgcolor='white',
+                        plot_bgcolor='#1E1E1E',
                         bargap=0.2
                     )
                     
                     # Hide category text inside small bars
                     fig.update_traces(textposition='none')
-                    
-                    # Display the chart
-                    st.plotly_chart(fig, use_container_width=True)
-                    st.write(weekly_expenses)
-                    
-                    # Calculate weekly total
+
+                        # Calculate weekly total
                     weekly_total = weekly_expenses[weekly_expenses['amount'] < 0]['amount'].abs().sum()
                     
                     # Show weekly summary
                     st.metric("Total Weekly Spending", f"${weekly_total:.2f}")
+                    
+                    # Display the chart
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    
+                  
                     
                     # Add information about the date range
                     st.markdown(f"*Showing data from {week_start.strftime('%B %d, %Y')} to {week_end.strftime('%B %d, %Y')}*")
@@ -705,17 +614,6 @@ else:  # Budgeting & Forecasting view
     else:
         st.info("Insufficient data to generate savings forecast. Please add income and expense data.")
 
-# Footer with quick tips
-st.markdown("---")
-st.markdown("""
-#### 💡 Quick Financial Tips:
-
-- **Track consistently**: Regular monitoring is key to financial awareness
-- **Review weekly**: Weekly reviews help catch overspending early
-- **Adjust as needed**: Adapt your budget as your circumstances change
-- **Emergency fund first**: Build 3-6 months of expenses before other financial goals
-- **Automate savings**: Set up automatic transfers to savings on payday
-""")
 
 if debug_mode:
     st.header('🐞 Debug View')
@@ -737,5 +635,18 @@ if debug_mode:
     st.subheader('Processed DataFrames')
     st.write('expenses_df:')
     st.write(expenses_df)
+
+if 'selected_day' not in st.session_state:
+    st.session_state['selected_day'] = week_days[today.weekday()]
+
+selected_day_label = st.session_state['selected_day']
+selected_day_index = week_days.index(selected_day_label)
+selected_date = week_dates[selected_day_index]
+
+selected_date_df = this_month_expenses[
+    (this_month_expenses['date'].dt.date == selected_date) &
+    (~this_month_expenses['transactionType'].isin(['Transfer', 'Round Up']))
+]
+
  
 
