@@ -16,6 +16,7 @@ from up_api_service import (
 from finance_recommendations import calculate_spending_limits
 import up_api_service
 import pytz
+from streamlit_cookies_manager import EncryptedCookieManager
 
 # Page configuration
 st.set_page_config(
@@ -28,21 +29,51 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* Style for the date picker */
-    div[data-testid="stSelectbox"] {border: 1px solid #f0f2f6; border-radius: 10px; padding: 5px;}
+    div[data-testid="stSelectbox"] {border: 1px solid #f0f2f6; border-radius: 10px; padding: 2px;}
     div[data-testid="stSelectbox"] > div:first-child {background-color: #f7f7f7;}
     div[data-testid="stSelectbox"]:hover {border: 1px solid #c0c6d3;}
     
     /* Improve transaction list appearance */
-    .transaction-row {padding: 10px 0; border-bottom: 1px solid #f0f2f6;}
+    .transaction-row {padding: 4px 0; border-bottom: 1px solid #f0f2f6;}
     
     /* Make month headers stand out */
-    h3 {color: #2c3e50; margin-bottom: 10px;}
+    h3 {color: #2c3e50; margin-bottom: 6px;}
+
+    /* Reduce padding/margin for main container */
+    .block-container {padding-top: 1rem; padding-bottom: 1rem;}
+    section.main > div {padding-top: 0.3rem; padding-bottom: 0.3rem;}
+
+    /* Hide Streamlit footer and hamburger menu */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+
+    /* Add this CSS to make the tab content fill the viewport and be scrollable if needed */
+    .block-container {
+        padding-top: 0.3rem;
+        padding-bottom: 0.5rem;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        margin-bottom: 0;
+    }
+    .stTabs [data-baseweb="tab-panel"] {
+        height: calc(100vh - 120px); /* Adjust 120px if your header is taller/shorter */
+        overflow-y: auto;
+        padding-bottom: 0.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- LOGIN PAGE ---
+cookies = EncryptedCookieManager(
+    prefix="up_finance_",  # Optional: helps avoid collisions
+    password="your-very-secret-password"  # Change this to something secret!
+)
+if not cookies.ready():
+    st.stop()
+
+# Check for token in cookie first
 if 'UP_API_TOKEN' not in st.session_state:
-    st.session_state['UP_API_TOKEN'] = ''
+    st.session_state['UP_API_TOKEN'] = cookies.get('UP_API_TOKEN', '')
 
 if not st.session_state['UP_API_TOKEN']:
     st.title("🔒 Login to Financial Dashboard")
@@ -54,75 +85,19 @@ if not st.session_state['UP_API_TOKEN']:
     if st.button("Login"):
         if api_token_input:
             st.session_state['UP_API_TOKEN'] = api_token_input
+            cookies['UP_API_TOKEN'] = api_token_input  # Save to cookie
+            cookies.save()
             st.experimental_rerun()
         else:
             st.error("Please enter a valid API token.")
     st.stop()
 
-# App title and description
-st.title("💰 Personal Finance Dashboard")
-st.markdown("""
-This minimalist dashboard helps you track your finances and stay on budget.
-Research shows that regular tracking and visual feedback can significantly improve financial habits.
-""")
-
-# Sidebar for account summary and total balance
-with st.sidebar:
-    st.header("💵 Account Summary")
-    
-    # Display total balance
-    total_balance = get_total_balance()
-    st.metric("Total Balance", f"${total_balance:.2f}")
-    
-    # Get monthly income (salary only)
-    monthly_income = get_monthly_income()
-    st.metric("Monthly Income", f"${monthly_income:.2f}")
-    
-    # Calculate estimated annual income (salary only, based on most recent month * 12)
-    
-    
-    annual_income_data = get_estimated_annual_income()
-    st.metric("Annual Income", f"${annual_income_data:.2f}")
-    
-    st.caption("Monthly Income: Sum of all transactions with transactionType 'salary' for the current month.\nEstimated Annual Income: Sum of all 'salary' transactions for the previous month × 12.")
-
-    
-    # Add a note about how these are calculated
-    st.caption("Monthly Income: Sum of all transactions with transactionType 'salary' for the current month.\nEstimated Annual Income: Sum of all 'salary' transactions for the most recent month × 12.")
-    
- 
-    # Add a separator
-    st.markdown("---")
-    
-    # Check for Up Banking API token
-    import os
-    if not os.environ.get('UP_API_TOKEN'):
-        st.warning("""
-        ⚠️ **You're viewing mock data**
-        
-        For real banking data, you'll need an Up Banking API token.
-        Add the token to your environment variables as `UP_API_TOKEN`.
-        
-        [Get an Up Banking Token](https://api.up.com.au/getting_started)
-        """)
-    else:
-        st.success("✅ Connected to Up Banking API")
-        
-    # Add link to documentation    
-    st.markdown("""
-    ---
-    ### Documentation
-    * [Up Banking API Reference](https://developer.up.com.au)
-    * [Financial Guidelines](https://www.investopedia.com/terms/1/50-30-20-budget-rule.asp)
-    """)
-    
-    st.markdown("---")
-    st.markdown("""
-    #### 💡 Data Source
-    
-    This dashboard is using mock data based on the Up Banking API format.
-    For real usage, you would connect to your Up Banking account.
-    """)
+# Add a logout button
+if st.button("Logout"):
+    st.session_state['UP_API_TOKEN'] = ''
+    cookies['UP_API_TOKEN'] = ''
+    cookies.save()
+    st.experimental_rerun()
 
 # Load and process data for visualizations
 expenses_df = format_transactions_for_dashboard()
@@ -136,7 +111,19 @@ week_dates = [(monday + timedelta(days=i)).date() for i in range(7)]
 
 # Define the two main sections based on user selection
 with st.container():
-    st.header("📃 Expense Tracking")
+    cols = st.columns([3, 1, 1])
+    with cols[0]:
+        st.header("📃 Expense Tracking")
+    with cols[1]:
+        total_balance = get_total_balance()
+        st.metric("Total Balance", f"${total_balance:.2f}")
+    with cols[2]:
+        donate_url = "https://buy.stripe.com/test_eVq7sNfF8f22g171t5gw000"  # Change to your donation link
+        st.markdown(f"""
+            <a href="{donate_url}" target="_blank">
+                <button style='background-color:#FFD700; color:black; border:none; padding:0.5em 1.2em; border-radius:6px; font-size:1.1em; font-weight:bold; cursor:pointer;'>☕ Donate</button>
+            </a>
+        """, unsafe_allow_html=True)
     
     # Daily, Weekly, Monthly tabs for expense tracking
     tracking_tab = st.tabs(["Daily Expenses", "Weekly Breakdown", "Monthly Overview"])
@@ -283,7 +270,7 @@ with st.container():
                     st.metric("Total Weekly Spending", f"${weekly_total:.2f}")
                     
                     # Display the chart
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
                     
                     
                   
@@ -343,7 +330,7 @@ with st.container():
                         hole=0.4
                     )
                     fig.update_layout(margin=dict(t=40, b=0, l=0, r=0))
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
                  
                     
                    
