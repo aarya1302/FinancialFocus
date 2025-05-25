@@ -1,4 +1,5 @@
 # Personal Finance Dashboard
+https://dashup.streamlit.app/
 
 A minimalist personal finance dashboard with two key visualizations and research-backed spending recommendations using Streamlit. This dashboard provides insights into your financial health based on transaction data.
 
