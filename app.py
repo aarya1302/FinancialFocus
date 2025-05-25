@@ -87,7 +87,7 @@ if not st.session_state['UP_API_TOKEN']:
             st.session_state['UP_API_TOKEN'] = api_token_input
             cookies['UP_API_TOKEN'] = api_token_input  # Save to cookie
             cookies.save()
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Please enter a valid API token.")
     st.stop()
