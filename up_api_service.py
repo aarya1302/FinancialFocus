@@ -9,8 +9,6 @@ import json
 from mock_data import get_accounts_data, get_transactions_data, get_categories_data
 import streamlit as st
 
-# Check if we have an API token or should use mock data
-API_TOKEN = 'up:yeah:uBuNfAMrvjp7sj38VtMaGfwDHX8ByNVT9oNrRFVcW3qNgMW1drKvKtTCA9fmaEwHVlTEVa33aYQjHgN4uWUiQ2WWw8POBbiRDHpz7jo9vSBhQvpsCE1cVcYDuG5Thjf5'
 USE_MOCK_DATA = False
 
 def get_accounts():
