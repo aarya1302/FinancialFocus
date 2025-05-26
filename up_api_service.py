@@ -9,13 +9,9 @@ import json
 from mock_data import get_accounts_data, get_transactions_data, get_categories_data
 import streamlit as st
 
-# Check if we have an API token or should use mock data
-API_TOKEN = 'up:yeah:uBuNfAMrvjp7sj38VtMaGfwDHX8ByNVT9oNrRFVcW3qNgMW1drKvKtTCA9fmaEwHVlTEVa33aYQjHgN4uWUiQ2WWw8POBbiRDHpz7jo9vSBhQvpsCE1cVcYDuG5Thjf5'
-USE_MOCK_DATA = False
-
 def get_accounts():
     """Get accounts data from Up API or mock data"""
-    if USE_MOCK_DATA:
+    if st.session_state.get('USE_MOCK_DATA', False):
         return get_accounts_data()
     
     # Use real API
@@ -23,7 +19,7 @@ def get_accounts():
     
     url = "https://api.up.com.au/api/v1/accounts"
     headers = {
-        "Authorization": f"Bearer {API_TOKEN}"
+        "Authorization": f"Bearer {st.session_state['UP_API_TOKEN']}"
     }
     
     try:
@@ -37,7 +33,7 @@ def get_accounts():
 
 def get_transactions():
     """Get transactions data from Up API or mock data"""
-    if USE_MOCK_DATA:
+    if st.session_state.get('USE_MOCK_DATA', False):
         return get_transactions_data()
     
     # Use real API
@@ -45,7 +41,7 @@ def get_transactions():
     
     url = "https://api.up.com.au/api/v1/transactions?page[size]=100"
     headers = {
-        "Authorization": f"Bearer {API_TOKEN}"
+        "Authorization": f"Bearer {st.session_state['UP_API_TOKEN']}"
     }
     
     try:
@@ -75,7 +71,7 @@ def get_transactions():
 
 def get_categories():
     """Get categories data from Up API or mock data"""
-    if USE_MOCK_DATA:
+    if st.session_state.get('USE_MOCK_DATA', False):
         return get_categories_data()
     
     # Use real API
@@ -83,7 +79,7 @@ def get_categories():
     
     url = "https://api.up.com.au/api/v1/categories"
     headers = {
-        "Authorization": f"Bearer {API_TOKEN}"
+        "Authorization": f"Bearer {st.session_state['UP_API_TOKEN']}"
     }
     
     try:
@@ -188,6 +184,7 @@ def get_estimated_annual_income():
     prev_salary_df = salary_df[salary_df['month'] == prev_month]
     monthly_salary = prev_salary_df['amount'].sum()
     return monthly_salary * 12
+
 def get_monthly_expenses_by_category():
     """Get monthly expenses grouped by category"""
     df = format_transactions_for_dashboard()

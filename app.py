@@ -75,27 +75,47 @@ if not cookies.ready():
 if 'UP_API_TOKEN' not in st.session_state:
     st.session_state['UP_API_TOKEN'] = cookies.get('UP_API_TOKEN', '')
 
-if not st.session_state['UP_API_TOKEN']:
+if 'USE_MOCK_DATA' not in st.session_state:
+    st.session_state['USE_MOCK_DATA'] = cookies.get('USE_MOCK_DATA', False)
+
+if not st.session_state['UP_API_TOKEN'] and not st.session_state['USE_MOCK_DATA']:
     st.title("🔒 Login to Financial Dashboard")
     st.markdown("""
     Please enter your Up Banking API token to access your personal finance dashboard.
     [Get an Up Banking Token](https://api.up.com.au/getting_started)
     """)
-    api_token_input = st.text_input("Up Banking API Token", type="password")
-    if st.button("Login"):
-        if api_token_input:
-            st.session_state['UP_API_TOKEN'] = api_token_input
-            cookies['UP_API_TOKEN'] = api_token_input  # Save to cookie
+    
+    # Add mock data mode toggle
+    use_mock_data = st.checkbox("Use Mock Data Mode (for testing/development)")
+    
+    if not use_mock_data:
+        api_token_input = st.text_input("Up Banking API Token", type="password")
+        if st.button("Login"):
+            if api_token_input:
+                st.session_state['UP_API_TOKEN'] = api_token_input
+                st.session_state['USE_MOCK_DATA'] = False
+                cookies['UP_API_TOKEN'] = api_token_input
+                cookies['USE_MOCK_DATA'] = False
+                cookies.save()
+                st.rerun()
+            else:
+                st.error("Please enter a valid API token.")
+    else:
+        if st.button("Enter Mock Mode"):
+            st.session_state['UP_API_TOKEN'] = ''
+            st.session_state['USE_MOCK_DATA'] = True
+            cookies['UP_API_TOKEN'] = ''
+            cookies['USE_MOCK_DATA'] = True
             cookies.save()
             st.rerun()
-        else:
-            st.error("Please enter a valid API token.")
     st.stop()
 
 # Add a logout button
 if st.button("Logout"):
     st.session_state['UP_API_TOKEN'] = ''
+    st.session_state['USE_MOCK_DATA'] = False
     cookies['UP_API_TOKEN'] = ''
+    cookies['USE_MOCK_DATA'] = False
     cookies.save()
     st.experimental_rerun()
 
